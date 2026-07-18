@@ -91,7 +91,12 @@ async function main(): Promise<void> {
 
 /** Wire process signals to a clean shutdown: kill scratch scripts, wipe scratch dir, stop the socket. */
 function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager): void {
+  let shuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
     log.info("Shutting down", { signal });
     try {
       // Session-close cleanup for scratch scripts (kill + wipe); the startup wipe is the backstop for crashes.
@@ -112,6 +117,11 @@ function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager): 
 
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+  // On Windows the host closes stdin instead of signalling when a conversation ends; without this the
+  // process lingers and keeps the socket port from the next conversation's MCP instance.
+  process.stdin.on("end", () => void shutdown("stdin-eof"));
+  process.stdin.on("close", () => void shutdown("stdin-close"));
 }
 
 // =========================================================================================================

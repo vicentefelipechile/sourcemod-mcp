@@ -31,6 +31,9 @@ import type { SocketConfig } from "./config.js";
 /** Default time to wait for a plugin result before rejecting the pending intent. */
 const DEFAULT_INTENT_TIMEOUT_MS = 10_000;
 
+const BIND_RETRY_TOTAL_MS = 15_000;
+const BIND_RETRY_INTERVAL_MS = 500;
+
 // =========================================================================================================
 // Types
 // =========================================================================================================
@@ -52,6 +55,10 @@ export interface SendIntentOptions {
 
 const log = createLogger("socket");
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
 // =========================================================================================================
 // Main
 // =========================================================================================================
@@ -69,27 +76,54 @@ export class BridgeSocketServer {
 
   constructor(private readonly config: SocketConfig) {}
 
-  /** True when a bridge plugin is currently connected. */
   get isConnected(): boolean {
     return this.connection !== null && !this.connection.destroyed;
   }
 
-  /** Start listening for the bridge plugin to connect. Resolves once the server is bound. */
-  start(): Promise<void> {
-    return new Promise((resolveStart, rejectStart) => {
+  /**
+   * Start listening for the bridge plugin to connect. Resolves once the server is bound. Retries on
+   * EADDRINUSE, since a predecessor MCP process can still be releasing the port as this one starts.
+   */
+  async start(): Promise<void> {
+    const deadline = Date.now() + BIND_RETRY_TOTAL_MS;
+    for (;;) {
+      try {
+        await this.tryBind();
+        return;
+      } catch (err) {
+        const inUse = (err as NodeJS.ErrnoException).code === "EADDRINUSE";
+        if (!inUse || Date.now() >= deadline) {
+          throw err;
+        }
+        log.warn("Port in use, waiting for predecessor to release it", {
+          host: this.config.host,
+          port: this.config.port,
+        });
+        await delay(BIND_RETRY_INTERVAL_MS);
+      }
+    }
+  }
+
+  private tryBind(): Promise<void> {
+    return new Promise((resolveBind, rejectBind) => {
       const server = createServer((socket) => this.onConnection(socket));
 
-      server.on("error", (err) => {
-        log.error("Socket server error", { message: err.message });
-        rejectStart(err);
-      });
+      const onError = (err: Error) => {
+        server.removeListener("error", onError);
+        server.close();
+        this.server = null;
+        rejectBind(err);
+      };
+      server.on("error", onError);
 
       server.listen(this.config.port, this.config.host, () => {
+        server.removeListener("error", onError);
+        server.on("error", (err) => log.error("Socket server error", { message: err.message }));
         log.info("Bridge socket server listening", {
           host: this.config.host,
           port: this.config.port,
         });
-        resolveStart();
+        resolveBind();
       });
 
       this.server = server;
@@ -174,7 +208,6 @@ export class BridgeSocketServer {
     socket.on("close", () => this.onClose(socket));
   }
 
-  /** Decode inbound bytes into messages and route each by type. */
   private onData(chunk: Buffer): void {
     let messages: Message[];
     try {
@@ -192,7 +225,6 @@ export class BridgeSocketServer {
     }
   }
 
-  /** Route a decoded message to the pending-intent registry or the event listeners. */
   private routeMessage(message: Message): void {
     if (message.type === "result") {
       this.resolveResult(message as ResultMessage);
@@ -206,7 +238,6 @@ export class BridgeSocketServer {
     log.warn("Ignoring unexpected inbound intent frame", { action: message.action });
   }
 
-  /** Resolve the pending intent that a result correlates to. */
   private resolveResult(result: ResultMessage): void {
     const entry = this.pending.get(result.id);
     if (!entry) {

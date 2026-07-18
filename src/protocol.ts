@@ -85,7 +85,7 @@ function asMessage(value: unknown): Message | null {
 // Main
 // =========================================================================================================
 
-/** Encode a message into a single length-prefixed frame ready to write to the socket. */
+// Wire format: a 4-byte big-endian length prefix followed by the UTF-8 JSON body.
 export function encodeFrame(message: Message): Buffer {
   const json = Buffer.from(JSON.stringify(message), "utf8");
   if (json.length > MAX_FRAME_BYTES) {

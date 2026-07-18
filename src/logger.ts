@@ -14,7 +14,6 @@ type LogLevel = "debug" | "info" | "warn" | "error";
 // Helpers
 // =========================================================================================================
 
-/** Format a single structured log line as timestamped, level-tagged text. */
 function format(level: LogLevel, scope: string, message: string, extra?: unknown): string {
   const time = new Date().toISOString();
   const base = `${time} [${level.toUpperCase()}] (${scope}) ${message}`;
@@ -28,7 +27,7 @@ function format(level: LogLevel, scope: string, message: string, extra?: unknown
   }
 }
 
-/** Write a line to stderr at the given level. */
+// stderr, never stdout: stdout is reserved for the MCP JSON-RPC transport.
 function emit(level: LogLevel, scope: string, message: string, extra?: unknown): void {
   process.stderr.write(`${format(level, scope, message, extra)}\n`);
 }
@@ -37,7 +36,6 @@ function emit(level: LogLevel, scope: string, message: string, extra?: unknown):
 // Main
 // =========================================================================================================
 
-/** Create a scoped logger. The scope tag identifies the subsystem in every line it emits. */
 export function createLogger(scope: string) {
   return {
     debug: (message: string, extra?: unknown) => emit("debug", scope, message, extra),

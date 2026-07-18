@@ -88,7 +88,7 @@ function asStr(value: unknown, fallback: string): string {
   return value.trim();
 }
 
-/** Coerce a config value to a valid port number, falling back to a default when unset or invalid. */
+// Throws on an out-of-range port rather than silently falling back, so a typo'd port fails loudly.
 function asPort(value: unknown, key: string, fallback: number): number {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -121,7 +121,6 @@ function resolveConfigPath(): string {
   return resolve(here, "..", DEFAULT_CONFIG_NAME);
 }
 
-/** Read and parse the config file. Throws a clear error if it is missing or malformed. */
 function readRawConfig(path: string): RawConfig {
   let text: string;
   try {
@@ -142,7 +141,6 @@ function readRawConfig(path: string): RawConfig {
 // Main
 // =========================================================================================================
 
-/** Build the config object from the on-disk JSON config file. Throws on missing file or malformed values. */
 export function loadConfig(): Config {
   const path = resolveConfigPath();
   const raw = readRawConfig(path);

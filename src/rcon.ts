@@ -19,7 +19,7 @@ const log = createLogger("rcon");
 // Main
 // =========================================================================================================
 
-/** Run a single console command over RCON and return its textual response. Throws on connect/auth failure. */
+// Opens, authenticates, runs, and closes on every call so a dropped session never leaves a stale connection.
 export async function rconExec(config: RconConfig, command: string): Promise<string> {
   if (!config.password) {
     throw new Error("SM_RCON_PASSWORD is not configured; RCON fallback is unavailable.");

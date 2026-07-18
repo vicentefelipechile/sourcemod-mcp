@@ -44,6 +44,7 @@
 Handle g_hSocket = null;
 bool g_bConnected = false;
 Handle g_hReconnectTimer = null;
+bool g_bErrorLogged = false;
 
 ConVar g_cvHost = null;
 ConVar g_cvPort = null;
@@ -181,6 +182,7 @@ void TryConnect()
 public void OnSocketConnected(Handle socket, any arg)
 {
     g_bConnected = true;
+    g_bErrorLogged = false;
     g_RxBuffer.Clear();
     LogMessage("[mcp_bridge] Connected to MCP socket");
 }
@@ -212,7 +214,11 @@ public void OnSocketDisconnected(Handle socket, any arg)
 
 public void OnSocketError(Handle socket, const int errorType, const int errorNum, any arg)
 {
-    LogError("[mcp_bridge] Socket error: type %d, num %d", errorType, errorNum);
+    if (!g_bErrorLogged)
+    {
+        LogError("[mcp_bridge] Socket error: type %d, num %d (further errors suppressed until reconnect)", errorType, errorNum);
+        g_bErrorLogged = true;
+    }
     if (g_hSocket != null)
     {
         CloseHandle(g_hSocket);

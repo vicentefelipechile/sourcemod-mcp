@@ -29,3 +29,12 @@ descriptions (which the model reads at call time) and the README (which is human
   not run. Re-issue with `confirm: true` to execute. This applies to `rcon_exec` and the `console`
   action of `send_intent`. See `src/safety.ts` for the classification.
 - All filesystem/cfg tools are confined to whitelisted roots; paths outside them are rejected.
+
+## Compiling the bridge plugin
+
+- The real source is **`plugin/scripting/mcp_bridge.sp`** (modular, with includes under
+  `plugin/scripting/include/mcp_bridge/`). `plugin/compiler/mcp_bridge.sp` is a stale monolithic copy —
+  do not edit or compile it.
+- `compile` needs `includeDirs: ["plugin/scripting/include", "plugin/compiler/include"]`, or it fails on
+  `#include "mcp_bridge/protocol.inc"`.
+- After a successful compile, `deploy` the `.smx` then `reload_plugin mcp_bridge` to apply it live.

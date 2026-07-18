@@ -112,7 +112,6 @@ export class DebugStore {
     return [...result];
   }
 
-  /** Enable or disable persisting events to the on-disk log. */
   setRecording(enabled: boolean): void {
     this.recording = enabled;
     log.info("Event recording toggled", { enabled });
