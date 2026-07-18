@@ -12,6 +12,7 @@ import { join } from "node:path";
 
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
+import { errMessage } from "./errors.js";
 import { BridgeSocketServer } from "./socket-server.js";
 import { EventBuffer } from "./event-buffer.js";
 import { DebugStore } from "./debug-store.js";
@@ -19,6 +20,7 @@ import { registerBridgeTools } from "./tools/bridge-tools.js";
 import { registerTelemetryTools } from "./tools/telemetry-tools.js";
 import { registerBuildTools } from "./tools/build-tools.js";
 import { registerFileTools } from "./tools/file-tools.js";
+import { registerCfgTools } from "./tools/cfg-tools.js";
 import { registerDebugTools } from "./tools/debug-tools.js";
 import { ScratchManager } from "./scratch-manager.js";
 import { registerScratchTools } from "./tools/scratch-tools.js";
@@ -69,6 +71,7 @@ async function main(): Promise<void> {
   registerTelemetryTools(server, bridge, events);
   registerBuildTools(server, config, bridge);
   registerFileTools(server, config);
+  registerCfgTools(server, config, bridge);
   registerDebugTools(server, bridge, debug);
 
   // Scratch subsystem: wipe the scratch dir on startup (the real zero-trace backstop against crash orphans),
@@ -96,13 +99,13 @@ function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager): 
       await scratch.wipe();
     } catch (err) {
       log.error("Error cleaning up scratch on shutdown", {
-        message: err instanceof Error ? err.message : String(err),
+        message: errMessage(err),
       });
     }
     try {
       await bridge.stop();
     } catch (err) {
-      log.error("Error during shutdown", { message: err instanceof Error ? err.message : String(err) });
+      log.error("Error during shutdown", { message: errMessage(err) });
     }
     process.exit(0);
   };
@@ -116,6 +119,6 @@ function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager): 
 // =========================================================================================================
 
 main().catch((err) => {
-  log.error("Fatal error during startup", { message: err instanceof Error ? err.message : String(err) });
+  log.error("Fatal error during startup", { message: errMessage(err) });
   process.exit(1);
 });

@@ -10,34 +10,19 @@ import { z } from "zod";
 
 import type { BridgeSocketServer } from "../socket-server.js";
 import type { EventBuffer } from "../event-buffer.js";
+import { jsonContent, errorContent, errMessage } from "./shared.js";
 
 // =========================================================================================================
 // Constants
 // =========================================================================================================
 
-/** Default and maximum number of recent events a single query returns. */
 const DEFAULT_EVENT_LIMIT = 50;
 const MAX_EVENT_LIMIT = 500;
-
-// =========================================================================================================
-// Helpers
-// =========================================================================================================
-
-/** Wrap a value as JSON tool content. */
-function jsonContent(value: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
-}
-
-/** Wrap an error message as an MCP tool error result. */
-function errorContent(message: string) {
-  return { isError: true, content: [{ type: "text" as const, text: message }] };
-}
 
 // =========================================================================================================
 // Main
 // =========================================================================================================
 
-/** Register the telemetry read tools. */
 export function registerTelemetryTools(
   server: McpServer,
   bridge: BridgeSocketServer,
@@ -92,7 +77,7 @@ export function registerTelemetryTools(
         }
         return jsonContent(result.data);
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );

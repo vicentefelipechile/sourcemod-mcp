@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import type { BridgeSocketServer } from "../socket-server.js";
 import type { DebugStore } from "../debug-store.js";
+import { jsonContent, errorContent, errMessage, DEFAULT_TOOL_TIMEOUT_MS } from "./shared.js";
 
 // =========================================================================================================
 // Constants
@@ -27,23 +28,15 @@ const MAX_ERROR_LIMIT = 300;
 // Helpers
 // =========================================================================================================
 
-function jsonContent(value: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
-}
-
-function errorContent(message: string) {
-  return { isError: true, content: [{ type: "text" as const, text: message }] };
-}
-
 /** Send an intent, returning a uniform error result when the bridge is down or the intent fails. */
 async function bridgeIntent(bridge: BridgeSocketServer, action: string, payload: unknown) {
   if (!bridge.isConnected) {
     return { ok: false, error: "No bridge plugin connected." };
   }
   try {
-    return await bridge.sendIntent(action, payload, { timeoutMs: 8_000 });
+    return await bridge.sendIntent(action, payload, { timeoutMs: DEFAULT_TOOL_TIMEOUT_MS });
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: errMessage(err) };
   }
 }
 
@@ -51,9 +44,7 @@ async function bridgeIntent(bridge: BridgeSocketServer, action: string, payload:
 // Main
 // =========================================================================================================
 
-/** Register the debugging tools. */
 export function registerDebugTools(server: McpServer, bridge: BridgeSocketServer, store: DebugStore): void {
-  // --- get_errors ---
   server.registerTool(
     "get_errors",
     {
@@ -73,7 +64,6 @@ export function registerDebugTools(server: McpServer, bridge: BridgeSocketServer
     },
   );
 
-  // --- get_event_log ---
   server.registerTool(
     "get_event_log",
     {
@@ -93,12 +83,11 @@ export function registerDebugTools(server: McpServer, bridge: BridgeSocketServer
         const entries = await store.queryEventLog({ since, actions, limit });
         return jsonContent({ count: entries.length, recording: store.isRecording, entries });
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
 
-  // --- set_capture (capture_errors toggle) ---
   server.registerTool(
     "set_capture",
     {
@@ -117,7 +106,6 @@ export function registerDebugTools(server: McpServer, bridge: BridgeSocketServer
     },
   );
 
-  // --- set_recording (record_events toggle) ---
   server.registerTool(
     "set_recording",
     {
@@ -138,7 +126,6 @@ export function registerDebugTools(server: McpServer, bridge: BridgeSocketServer
     },
   );
 
-  // --- reproduce ---
   server.registerTool(
     "reproduce",
     {
@@ -158,7 +145,6 @@ export function registerDebugTools(server: McpServer, bridge: BridgeSocketServer
     },
   );
 
-  // --- dump_state ---
   server.registerTool(
     "dump_state",
     {

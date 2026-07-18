@@ -65,7 +65,7 @@ promise when the `result` arrives (or rejects on timeout).
 
 ## MCP tools
 
-24 tools, grouped by concern.
+30 tools, grouped by concern.
 
 ### Control
 | Tool | Purpose |
@@ -91,6 +91,14 @@ promise when the `result` arrives (or rejects on timeout).
 | Tool | Purpose |
 |---|---|
 | `read_file` / `write_file` / `list_dir` | Scoped to whitelisted roots (scripting, cfg, plugins, scratch) via the path guard. |
+
+### Config (.cfg)
+| Tool | Purpose |
+|---|---|
+| `cfg_list` | List `.cfg` files under the server's cfg dir. |
+| `cfg_read` / `cfg_write` | Read or fully rewrite a `.cfg` file (scoped to the cfg root). |
+| `cfg_get_cvar` / `cfg_set_cvar` | Read or set a single cvar in place, preserving comments and other settings. |
+| `cfg_exec` | Apply a `.cfg` live via `exec` (bridge, RCON fallback). |
 
 ### Debugging
 | Tool | Purpose |

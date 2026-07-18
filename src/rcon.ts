@@ -6,6 +6,7 @@
 // and closes so a dropped RCON session never leaves a stale connection around.
 
 import { createLogger } from "./logger.js";
+import { errMessage } from "./errors.js";
 import type { RconConfig } from "./config.js";
 
 // =========================================================================================================
@@ -45,7 +46,7 @@ export async function rconExec(config: RconConfig, command: string): Promise<str
     const response = await conn.execute(command);
     return typeof response === "string" ? response : String(response);
   } catch (err) {
-    log.error("RCON command failed", { message: err instanceof Error ? err.message : String(err) });
+    log.error("RCON command failed", { message: errMessage(err) });
     throw err instanceof Error ? err : new Error(String(err));
   } finally {
     try {

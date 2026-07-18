@@ -11,6 +11,7 @@ import { appendFile, readFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { createLogger } from "./logger.js";
+import { errMessage } from "./errors.js";
 import type { EventMessage } from "./protocol.js";
 
 // =========================================================================================================
@@ -135,7 +136,7 @@ export class DebugStore {
       await mkdir(dirname(this.eventLogPath), { recursive: true });
       await appendFile(this.eventLogPath, `${JSON.stringify(entry)}\n`, "utf8");
     } catch (err) {
-      log.error("Failed to persist event", { message: err instanceof Error ? err.message : String(err) });
+      log.error("Failed to persist event", { message: errMessage(err) });
     }
   }
 

@@ -14,6 +14,7 @@ import { z } from "zod";
 import type { Config } from "../config.js";
 import { resolveWithinRoots, type NamedRoot } from "../path-guard.js";
 import { createLogger } from "../logger.js";
+import { jsonContent, textContent, errorContent, errMessage } from "./shared.js";
 
 // =========================================================================================================
 // Constants
@@ -27,18 +28,6 @@ const MAX_READ_BYTES = 1024 * 1024;
 // =========================================================================================================
 // Helpers
 // =========================================================================================================
-
-function jsonContent(value: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
-}
-
-function textContent(text: string) {
-  return { content: [{ type: "text" as const, text }] };
-}
-
-function errorContent(message: string) {
-  return { isError: true, content: [{ type: "text" as const, text: message }] };
-}
 
 /** Assemble the whitelisted roots from config, in priority order (scripting anchors relative paths). */
 function fileRoots(config: Config): NamedRoot[] {
@@ -54,11 +43,9 @@ function fileRoots(config: Config): NamedRoot[] {
 // Main
 // =========================================================================================================
 
-/** Register the file read/write/list tools. */
 export function registerFileTools(server: McpServer, config: Config): void {
   const roots = () => fileRoots(config);
 
-  // --- read_file ---
   server.registerTool(
     "read_file",
     {
@@ -80,12 +67,11 @@ export function registerFileTools(server: McpServer, config: Config): void {
         const content = await readFile(absolutePath, "utf8");
         return textContent(content);
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
 
-  // --- write_file ---
   server.registerTool(
     "write_file",
     {
@@ -106,12 +92,11 @@ export function registerFileTools(server: McpServer, config: Config): void {
         log.info("Wrote file", { path: absolutePath, root: root.name, bytes: content.length });
         return jsonContent({ ok: true, path: absolutePath, root: root.name, bytes: content.length });
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
 
-  // --- list_dir ---
   server.registerTool(
     "list_dir",
     {
@@ -146,7 +131,7 @@ export function registerFileTools(server: McpServer, config: Config): void {
         );
         return jsonContent({ path: absolutePath, root: root.name, entries: listing });
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );

@@ -59,7 +59,6 @@ export interface CompileResult {
 // Helpers
 // =========================================================================================================
 
-/** Parse combined spcomp output into structured diagnostics. */
 function parseDiagnostics(output: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const line of output.split(/\r?\n/)) {
@@ -79,14 +78,12 @@ function parseDiagnostics(output: string): Diagnostic[] {
   return diagnostics;
 }
 
-/** Resolve the default .smx output path next to a source file. */
 function defaultOutputPath(sourcePath: string): string {
   const dir = dirname(sourcePath);
   const name = basename(sourcePath).replace(/\.sp$/i, "");
   return join(dir, `${name}.smx`);
 }
 
-/** Run spcomp and collect its combined output plus exit code. */
 function runSpcomp(bin: string, args: string[]): Promise<{ code: number | null; output: string }> {
   return new Promise((resolveRun) => {
     const child = spawn(bin, args, { windowsHide: true });
@@ -119,7 +116,6 @@ function runSpcomp(bin: string, args: string[]): Promise<{ code: number | null; 
 // Main
 // =========================================================================================================
 
-/** Compile a .sp source file, returning structured diagnostics and the resolved .smx path on success. */
 export async function compileSource(
   config: CompilerConfig,
   sourcePath: string,

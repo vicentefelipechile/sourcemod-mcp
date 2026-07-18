@@ -21,6 +21,7 @@ import { compileSource } from "../compiler.js";
 import { rconExec } from "../rcon.js";
 import { classifyCommand, confirmationGate } from "../safety.js";
 import { createLogger } from "../logger.js";
+import { jsonContent, errorContent, errMessage, DEFAULT_TOOL_TIMEOUT_MS } from "./shared.js";
 
 // =========================================================================================================
 // Constants
@@ -35,14 +36,6 @@ const LIFECYCLE_OPS = ["load", "unload", "reload"] as const;
 // Helpers
 // =========================================================================================================
 
-function jsonContent(value: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
-}
-
-function errorContent(message: string) {
-  return { isError: true, content: [{ type: "text" as const, text: message }] };
-}
-
 /**
  * Run a plugin lifecycle op, preferring the bridge's structured plugins intent and falling back to RCON.
  * Returns a structured result describing which path was taken.
@@ -55,12 +48,10 @@ async function runLifecycle(
 ) {
   if (bridge.isConnected) {
     try {
-      const result = await bridge.sendIntent("plugins", { op, name }, { timeoutMs: 8_000 });
+      const result = await bridge.sendIntent("plugins", { op, name }, { timeoutMs: DEFAULT_TOOL_TIMEOUT_MS });
       return { via: "bridge", ...result };
     } catch (err) {
-      log.warn("Bridge lifecycle failed; falling back to RCON", {
-        message: err instanceof Error ? err.message : String(err),
-      });
+      log.warn("Bridge lifecycle failed; falling back to RCON", { message: errMessage(err) });
     }
   }
 
@@ -72,9 +63,7 @@ async function runLifecycle(
 // Main
 // =========================================================================================================
 
-/** Register the build, deploy, lifecycle, and RCON tools. */
 export function registerBuildTools(server: McpServer, config: Config, bridge: BridgeSocketServer): void {
-  // --- compile ---
   server.registerTool(
     "compile",
     {
@@ -106,12 +95,11 @@ export function registerBuildTools(server: McpServer, config: Config, bridge: Br
         });
         return jsonContent(result);
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
 
-  // --- deploy ---
   server.registerTool(
     "deploy",
     {
@@ -138,7 +126,7 @@ export function registerBuildTools(server: McpServer, config: Config, bridge: Br
         log.info("Deployed plugin", { from: smxPath, to: target });
         return jsonContent({ ok: true, deployed: target });
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
@@ -165,21 +153,22 @@ export function registerBuildTools(server: McpServer, config: Config, bridge: Br
           const result = await runLifecycle(config, bridge, op, name);
           return jsonContent(result);
         } catch (err) {
-          return errorContent(err instanceof Error ? err.message : String(err));
+          return errorContent(errMessage(err));
         }
       },
     );
   }
 
-  // --- rcon_exec ---
   server.registerTool(
     "rcon_exec",
     {
       title: "RCON Exec",
       description:
-        "Run a raw console command over RCON. Use when the bridge plugin is not loaded/connected, or for a " +
-        "one-off command not worth a dedicated action. Works without the custom plugin. Destructive commands " +
-        "(map/restart/kick/ban/exec/password) require confirm: true; without it the call returns a preview.",
+        "FALLBACK ONLY. Run a raw console command over RCON. Prefer send_intent with the \"console\" action " +
+        "for running console commands — it returns structured output and works in-process. Use rcon_exec " +
+        "solely when the bridge plugin is not loaded/connected (bridge_status reports disconnected). Works " +
+        "without the custom plugin. Destructive commands (map/restart/kick/ban/exec/password) require " +
+        "confirm: true; without it the call returns a preview.",
       inputSchema: {
         command: z.string().min(1).describe("The console command to run."),
         confirm: z
@@ -197,7 +186,7 @@ export function registerBuildTools(server: McpServer, config: Config, bridge: Br
         const output = await rconExec(config.rcon, command);
         return jsonContent({ ok: true, command, output });
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );

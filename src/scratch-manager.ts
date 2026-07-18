@@ -15,6 +15,7 @@ import { mkdir, writeFile, rm, copyFile, readdir } from "node:fs/promises";
 
 import { createLogger } from "./logger.js";
 import { compileSource, type CompileResult } from "./compiler.js";
+import { errMessage } from "./errors.js";
 import type { BridgeSocketServer } from "./socket-server.js";
 import type { Config } from "./config.js";
 
@@ -88,7 +89,7 @@ export class ScratchManager {
     try {
       await rm(dir, { recursive: true, force: true });
     } catch (err) {
-      log.error("Failed to wipe scratch dir", { message: err instanceof Error ? err.message : String(err) });
+      log.error("Failed to wipe scratch dir", { message: errMessage(err) });
     }
     await mkdir(dir, { recursive: true });
     this.registry.clear();
@@ -145,7 +146,7 @@ export class ScratchManager {
       }
     } catch (err) {
       await this.cleanupFiles(pluginName, sourcePath, smxScratchPath, deployedSmx);
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: errMessage(err) };
     }
 
     const entry: ScratchEntry = {
@@ -204,7 +205,7 @@ export class ScratchManager {
     try {
       await copyFile(entry.sourcePath, destSource);
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: errMessage(err) };
     }
 
     // The scratch instance stays loaded under its scratch name; the promoted copy is a fresh standalone
@@ -235,7 +236,7 @@ export class ScratchManager {
       } catch (err) {
         log.warn("Failed to unload scratch plugin; deleting files anyway", {
           pluginName: entry.pluginName,
-          message: err instanceof Error ? err.message : String(err),
+          message: errMessage(err),
         });
       }
     }
@@ -258,7 +259,7 @@ export class ScratchManager {
     try {
       await rm(path, { force: true });
     } catch (err) {
-      log.error("Failed to delete scratch file", { path, message: err instanceof Error ? err.message : String(err) });
+      log.error("Failed to delete scratch file", { path, message: errMessage(err) });
     }
   }
 

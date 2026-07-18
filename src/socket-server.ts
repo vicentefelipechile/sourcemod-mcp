@@ -21,6 +21,7 @@ import {
   type ResultMessage,
   type ResultPayload,
 } from "./protocol.js";
+import { errMessage } from "./errors.js";
 import type { SocketConfig } from "./config.js";
 
 // =========================================================================================================
@@ -180,7 +181,7 @@ export class BridgeSocketServer {
       messages = this.decoder.push(chunk);
     } catch (err) {
       log.error("Frame decode failure; dropping connection", {
-        message: err instanceof Error ? err.message : String(err),
+        message: errMessage(err),
       });
       this.connection?.destroy();
       return;
@@ -223,7 +224,7 @@ export class BridgeSocketServer {
         listener(event);
       } catch (err) {
         log.error("Event listener threw", {
-          message: err instanceof Error ? err.message : String(err),
+          message: errMessage(err),
         });
       }
     }

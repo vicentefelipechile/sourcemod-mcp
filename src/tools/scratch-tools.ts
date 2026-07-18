@@ -15,26 +15,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { ScratchManager } from "../scratch-manager.js";
-
-// =========================================================================================================
-// Helpers
-// =========================================================================================================
-
-function jsonContent(value: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
-}
-
-function errorContent(message: string) {
-  return { isError: true, content: [{ type: "text" as const, text: message }] };
-}
+import { jsonContent, errorContent, errMessage } from "./shared.js";
 
 // =========================================================================================================
 // Main
 // =========================================================================================================
 
-/** Register the scratch scripting tools. */
 export function registerScratchTools(server: McpServer, scratch: ScratchManager): void {
-  // --- run_scratch ---
   server.registerTool(
     "run_scratch",
     {
@@ -60,12 +47,11 @@ export function registerScratchTools(server: McpServer, scratch: ScratchManager)
         const result = await scratch.run(description, source);
         return jsonContent(result);
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
 
-  // --- list_scratch ---
   server.registerTool(
     "list_scratch",
     {
@@ -79,7 +65,6 @@ export function registerScratchTools(server: McpServer, scratch: ScratchManager)
     },
   );
 
-  // --- kill_scratch ---
   server.registerTool(
     "kill_scratch",
     {
@@ -99,7 +84,6 @@ export function registerScratchTools(server: McpServer, scratch: ScratchManager)
     },
   );
 
-  // --- kill_all_scratch ---
   server.registerTool(
     "kill_all_scratch",
     {
@@ -113,7 +97,6 @@ export function registerScratchTools(server: McpServer, scratch: ScratchManager)
     },
   );
 
-  // --- promote_scratch ---
   server.registerTool(
     "promote_scratch",
     {

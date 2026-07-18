@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import type { BridgeSocketServer } from "../socket-server.js";
 import { classifyCommand, confirmationGate } from "../safety.js";
+import { jsonContent, errorContent, errMessage } from "./shared.js";
 
 // =========================================================================================================
 // Constants
@@ -21,21 +22,6 @@ const MAX_INTENT_TIMEOUT_MS = 60_000;
 // =========================================================================================================
 // Helpers
 // =========================================================================================================
-
-/** Wrap a value as MCP text tool content, JSON-stringified for structured readability. */
-function jsonContent(value: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-  };
-}
-
-/** Wrap an error message as an MCP tool error result. */
-function errorContent(message: string) {
-  return {
-    isError: true,
-    content: [{ type: "text" as const, text: message }],
-  };
-}
 
 /**
  * Some MCP clients hand `payload` over as a JSON *string* rather than a nested object, which would then get
@@ -70,17 +56,18 @@ function extractCommand(payload: unknown): string {
 // Main
 // =========================================================================================================
 
-/** Register the bridge-facing tools on the given MCP server. */
 export function registerBridgeTools(server: McpServer, bridge: BridgeSocketServer): void {
   server.registerTool(
     "send_intent",
     {
       title: "Send Intent",
       description:
-        "Send a structured action to the bridge plugin running inside the gameserver and get a " +
-        "correlated, structured result back. The main control primitive: use it for anything that should " +
-        'run in-game with the full SourceMod API. The "console" action runs any server console command; ' +
-        "other actions are typed and validated by the plugin.",
+        "PREFERRED way to run anything on the gameserver. Sends a structured action to the bridge plugin " +
+        "running in-process and returns a correlated, structured result with the full SourceMod API " +
+        'available. ALWAYS try this before rcon_exec: use the "console" action to run any server console ' +
+        "command (payload { command: string }) — it is the direct replacement for RCON and returns cleaner " +
+        "output. Other actions (ping, query_state, plugins, ...) are typed and validated by the plugin. " +
+        "Only fall back to rcon_exec when this tool reports the bridge is not connected.",
       inputSchema: {
         action: z
           .string()
@@ -126,7 +113,7 @@ export function registerBridgeTools(server: McpServer, bridge: BridgeSocketServe
         const result = await bridge.sendIntent(action, payload ?? {}, { timeoutMs });
         return jsonContent(result);
       } catch (err) {
-        return errorContent(err instanceof Error ? err.message : String(err));
+        return errorContent(errMessage(err));
       }
     },
   );
@@ -151,7 +138,7 @@ export function registerBridgeTools(server: McpServer, bridge: BridgeSocketServe
         return jsonContent({
           connected: true,
           responsive: false,
-          error: err instanceof Error ? err.message : String(err),
+          error: errMessage(err),
         });
       }
     },
