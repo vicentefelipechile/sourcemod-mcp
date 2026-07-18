@@ -1,0 +1,37 @@
+{
+  "name": "sourcemod-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that gives Claude general-purpose control over a local TF2/SourceMod server via a persistent local socket to a bridge plugin.",
+  "type": "module",
+  "bin": {
+    "sourcemod-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "sourcemod",
+    "sourcepawn",
+    "tf2",
+    "source-engine"
+  ],
+  "author": "Vicente",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "rcon-srcds": "^2.0.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
