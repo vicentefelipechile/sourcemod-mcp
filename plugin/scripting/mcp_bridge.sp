@@ -88,6 +88,13 @@ public void OnMapStart()
     char mapName[128];
     GetCurrentMap(mapName, sizeof(mapName));
     MCP_Telemetry_MapStart(mapName);
+
+    // OnMapEnd tears the socket down (it does not survive a map change), so re-establish the link on the new
+    // map. Without this the bridge stays dead after every changelevel until the plugin is reloaded by hand.
+    if (!g_bConnected)
+    {
+        ScheduleReconnect();
+    }
 }
 
 public void OnPluginEnd()

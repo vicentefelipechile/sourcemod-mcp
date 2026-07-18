@@ -37,6 +37,26 @@ function errorContent(message: string) {
   };
 }
 
+/**
+ * Some MCP clients hand `payload` over as a JSON *string* rather than a nested object, which would then get
+ * double-encoded on the wire and reach the plugin as a string it cannot index. Parse such a string back into
+ * an object so the plugin always receives a real JSON object; leave anything else untouched.
+ */
+function normalizePayload(payload: unknown): unknown {
+  if (typeof payload !== "string") {
+    return payload;
+  }
+  const trimmed = payload.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return payload;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return payload;
+  }
+}
+
 /** Pull the command string out of a console action's payload, tolerating an unknown/missing shape. */
 function extractCommand(payload: unknown): string {
   if (payload && typeof payload === "object" && "command" in payload) {
@@ -83,12 +103,14 @@ export function registerBridgeTools(server: McpServer, bridge: BridgeSocketServe
           .describe("How long to wait for the plugin's result before failing."),
       },
     },
-    async ({ action, payload, confirm, timeoutMs }) => {
+    async ({ action, payload: rawPayload, confirm, timeoutMs }) => {
       if (!bridge.isConnected) {
         return errorContent(
           "No bridge plugin connected. Load the bridge plugin in the gameserver, or use rcon_exec as a fallback.",
         );
       }
+
+      const payload = normalizePayload(rawPayload);
 
       // The "console" action runs an arbitrary server command, so it carries the same destructive risk as
       // rcon_exec and goes through the same confirmation gate. Other actions are typed and narrow.

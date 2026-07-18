@@ -25,8 +25,12 @@ export async function rconExec(config: RconConfig, command: string): Promise<str
   }
 
   // rcon-srcds is CJS-first; import dynamically so the ESM build stays clean.
+  // Depending on the interop layer the constructor lands one or two `default`s deep,
+  // so unwrap until we hit the callable.
   const module = await import("rcon-srcds");
-  const Rcon = (module.default ?? module) as unknown as new (opts: {
+  const unwrap = (m: unknown): unknown =>
+    m && typeof m === "object" && "default" in m ? unwrap((m as { default: unknown }).default) : m;
+  const Rcon = unwrap(module) as unknown as new (opts: {
     host: string;
     port: number;
   }) => {
