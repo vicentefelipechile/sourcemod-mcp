@@ -168,4 +168,8 @@ dist
 !.dev.vars.example
 .env*
 !.env.example
+
+# Local config (holds RCON password); commit config.example.json only
+config.json
+!config.example.json
 .wrangler/

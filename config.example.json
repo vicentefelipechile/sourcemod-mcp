@@ -1,0 +1,21 @@
+{
+  "socket": {
+    "host": "127.0.0.1",
+    "port": 27100
+  },
+  "paths": {
+    "gameRoot": "C:/tf2server/tf",
+    "scriptingDir": "C:/tf2server/tf/addons/sourcemod/scripting",
+    "pluginsDir": "C:/tf2server/tf/addons/sourcemod/plugins",
+    "cfgDir": "C:/tf2server/tf/cfg",
+    "scratchDir": "./scratch"
+  },
+  "compiler": {
+    "spcompBin": "C:/tf2server/tf/addons/sourcemod/scripting/spcomp64.exe"
+  },
+  "rcon": {
+    "host": "127.0.0.1",
+    "port": 27015,
+    "password": "CHANGE_ME"
+  }
+}

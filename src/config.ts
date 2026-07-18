@@ -1,11 +1,19 @@
 // =========================================================================================================
 // Configuration
 // =========================================================================================================
-// Loads all runtime configuration from environment variables (see .env.example). Everything the MCP needs
-// to know about the local machine — socket port, filesystem roots, compiler binary, RCON creds — is resolved
+// Loads all runtime configuration from a JSON file (see config.example.json). Everything the MCP needs to
+// know about the local machine — socket port, filesystem roots, compiler binary, RCON creds — is resolved
 // here once at startup so the rest of the code depends on a single typed config object.
+//
+// The config file is resolved in this order:
+//   1. An explicit path passed as the first CLI argument (`node dist/index.js C:/path/config.json`).
+//   2. The SM_MCP_CONFIG environment variable.
+//   3. `config.json` next to the project root (the parent of dist/).
+// Any field may be omitted; documented defaults apply. Relative paths resolve against the process CWD.
 
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // =========================================================================================================
 // Constants
@@ -16,6 +24,9 @@ const DEFAULT_SOCKET_PORT = 27100;
 const DEFAULT_RCON_HOST = "127.0.0.1";
 const DEFAULT_RCON_PORT = 27015;
 const DEFAULT_SCRATCH_DIR = "./scratch";
+
+/** Config file name looked up next to the project root when no explicit path is given. */
+const DEFAULT_CONFIG_NAME = "config.json";
 
 // =========================================================================================================
 // Types
@@ -51,63 +62,110 @@ export interface Config {
   rcon: RconConfig;
 }
 
+/** Shape of the on-disk config.json. Every field is optional; defaults fill the gaps. */
+interface RawConfig {
+  socket?: { host?: string; port?: number };
+  paths?: {
+    gameRoot?: string;
+    scriptingDir?: string;
+    pluginsDir?: string;
+    cfgDir?: string;
+    scratchDir?: string;
+  };
+  compiler?: { spcompBin?: string };
+  rcon?: { host?: string; port?: number; password?: string };
+}
+
 // =========================================================================================================
 // Helpers
 // =========================================================================================================
 
-/** Read an env var as a string, falling back to a default. Empty strings count as unset. */
-function envStr(key: string, fallback: string): string {
-  const value = process.env[key];
-  if (value === undefined || value.trim() === "") {
+/** Coerce a config value to a trimmed string, falling back to a default. Empty strings count as unset. */
+function asStr(value: unknown, fallback: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
     return fallback;
   }
   return value.trim();
 }
 
-/** Read an env var as an integer port, falling back to a default when unset or invalid. */
-function envPort(key: string, fallback: number): number {
-  const raw = process.env[key];
-  if (raw === undefined || raw.trim() === "") {
+/** Coerce a config value to a valid port number, falling back to a default when unset or invalid. */
+function asPort(value: unknown, key: string, fallback: number): number {
+  if (value === undefined || value === null || value === "") {
     return fallback;
   }
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed) || parsed <= 0 || parsed > 65535) {
-    throw new Error(`Invalid port in ${key}: ${raw}`);
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    throw new Error(`Invalid port in ${key}: ${String(value)}`);
   }
   return parsed;
 }
 
-/** Resolve a path env var to an absolute path, or return "" when unset (path-scoped tools guard on this). */
-function envPath(key: string, fallback = ""): string {
-  const raw = envStr(key, fallback);
+/** Resolve a path value to an absolute path, or return "" when unset (path-scoped tools guard on this). */
+function asPath(value: unknown, fallback = ""): string {
+  const raw = asStr(value, fallback);
   return raw === "" ? "" : resolve(raw);
+}
+
+/** Locate the config file: CLI arg, then SM_MCP_CONFIG, then config.json at the project root. */
+function resolveConfigPath(): string {
+  const fromArg = process.argv[2];
+  if (fromArg && fromArg.trim() !== "") {
+    return resolve(fromArg.trim());
+  }
+  const fromEnv = process.env.SM_MCP_CONFIG;
+  if (fromEnv && fromEnv.trim() !== "") {
+    return resolve(fromEnv.trim());
+  }
+  // Project root is the parent of the dir holding this compiled module (dist/).
+  const here = dirname(fileURLToPath(import.meta.url));
+  return resolve(here, "..", DEFAULT_CONFIG_NAME);
+}
+
+/** Read and parse the config file. Throws a clear error if it is missing or malformed. */
+function readRawConfig(path: string): RawConfig {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    throw new Error(
+      `Config file not found at ${path}. Copy config.example.json to config.json (or set SM_MCP_CONFIG).`,
+    );
+  }
+  try {
+    return JSON.parse(text) as RawConfig;
+  } catch (err) {
+    throw new Error(`Config file at ${path} is not valid JSON: ${(err as Error).message}`);
+  }
 }
 
 // =========================================================================================================
 // Main
 // =========================================================================================================
 
-/** Build the config object from the current process environment. Throws on malformed values. */
+/** Build the config object from the on-disk JSON config file. Throws on missing file or malformed values. */
 export function loadConfig(): Config {
+  const path = resolveConfigPath();
+  const raw = readRawConfig(path);
+
   return {
     socket: {
-      host: envStr("SM_MCP_SOCKET_HOST", DEFAULT_SOCKET_HOST),
-      port: envPort("SM_MCP_SOCKET_PORT", DEFAULT_SOCKET_PORT),
+      host: asStr(raw.socket?.host, DEFAULT_SOCKET_HOST),
+      port: asPort(raw.socket?.port, "socket.port", DEFAULT_SOCKET_PORT),
     },
     paths: {
-      gameRoot: envPath("SM_GAME_ROOT"),
-      scriptingDir: envPath("SM_SCRIPTING_DIR"),
-      pluginsDir: envPath("SM_PLUGINS_DIR"),
-      cfgDir: envPath("SM_CFG_DIR"),
-      scratchDir: envPath("SM_SCRATCH_DIR", DEFAULT_SCRATCH_DIR),
+      gameRoot: asPath(raw.paths?.gameRoot),
+      scriptingDir: asPath(raw.paths?.scriptingDir),
+      pluginsDir: asPath(raw.paths?.pluginsDir),
+      cfgDir: asPath(raw.paths?.cfgDir),
+      scratchDir: asPath(raw.paths?.scratchDir, DEFAULT_SCRATCH_DIR),
     },
     compiler: {
-      spcompBin: envPath("SM_SPCOMP_BIN"),
+      spcompBin: asPath(raw.compiler?.spcompBin),
     },
     rcon: {
-      host: envStr("SM_RCON_HOST", DEFAULT_RCON_HOST),
-      port: envPort("SM_RCON_PORT", DEFAULT_RCON_PORT),
-      password: envStr("SM_RCON_PASSWORD", ""),
+      host: asStr(raw.rcon?.host, DEFAULT_RCON_HOST),
+      port: asPort(raw.rcon?.port, "rcon.port", DEFAULT_RCON_PORT),
+      password: asStr(raw.rcon?.password, ""),
     },
   };
 }

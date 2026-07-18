@@ -36,7 +36,7 @@ Raw local TCP carrying **length-prefixed JSON frames**:
 
 ```
 ┌────────────────────────┬─────────────────────────────────┐
-│  4-byte length (BE u32) │  UTF-8 JSON payload (that many)  │
+│ 4-byte length (BE u32) │  UTF-8 JSON payload (that many) │
 └────────────────────────┴─────────────────────────────────┘
 ```
 
@@ -164,18 +164,22 @@ npm run build
 ```
 
 ### 2. Configure
-Copy `.env.example` to `.env` and fill in the paths and credentials:
+Copy `config.example.json` to `config.json` and fill in the paths and credentials:
 
-| Variable | Purpose |
+| Key | Purpose |
 |---|---|
-| `SM_MCP_SOCKET_HOST` / `SM_MCP_SOCKET_PORT` | Local socket the plugin connects to (default `127.0.0.1:27100`). |
-| `SM_GAME_ROOT` | Root of the game server install. |
-| `SM_SCRIPTING_DIR` | SourceMod `scripting/` dir (its `include/` is added to compiles automatically). |
-| `SM_PLUGINS_DIR` | SourceMod `plugins/` dir. |
-| `SM_CFG_DIR` | Server `cfg/` dir. |
-| `SM_SPCOMP_BIN` | Path to the `spcomp` binary. |
-| `SM_SCRATCH_DIR` | Isolated dir for ephemeral scratch scripts (default `./scratch`). |
-| `SM_RCON_HOST` / `SM_RCON_PORT` / `SM_RCON_PASSWORD` | RCON fallback credentials. |
+| `socket.host` / `socket.port` | Local socket the plugin connects to (default `127.0.0.1:27100`). |
+| `paths.gameRoot` | Root of the game server install. |
+| `paths.scriptingDir` | SourceMod `scripting/` dir (its `include/` is added to compiles automatically). |
+| `paths.pluginsDir` | SourceMod `plugins/` dir. |
+| `paths.cfgDir` | Server `cfg/` dir. |
+| `paths.scratchDir` | Isolated dir for ephemeral scratch scripts (default `./scratch`). |
+| `compiler.spcompBin` | Path to the `spcomp` binary. |
+| `rcon.host` / `rcon.port` / `rcon.password` | RCON fallback credentials. |
+
+The config file is resolved in order: an explicit path passed as the first CLI argument
+(`node dist/index.js C:/path/config.json`), then the `SM_MCP_CONFIG` env var, then `config.json` next to the
+project root. Any field may be omitted; documented defaults apply.
 
 ### 3. Compile and load the bridge plugin
 Compile `plugin/scripting/mcp_bridge.sp` with `spcomp` (its includes are under
@@ -195,6 +199,11 @@ Point your MCP client at the built server (stdio transport):
     }
   }
 }
+```
+
+Or register it from the CLI:
+```bash
+claude mcp add sourcemod --scope user -- node /path/to/sourcemod-mcp/dist/index.js
 ```
 
 ## Development
