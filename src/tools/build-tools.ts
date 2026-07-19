@@ -39,6 +39,12 @@ const LIFECYCLE_OPS = ["load", "unload", "reload"] as const;
 /**
  * Run a plugin lifecycle op, preferring the bridge's structured plugins intent and falling back to RCON.
  * Returns a structured result describing which path was taken.
+ *
+ * The gameserver being unreachable right now (map change, restart, crash) is an expected, recurring state
+ * for this op, not an exceptional one — the bridge connects and drops independently of anything the MCP
+ * does. So when neither path can reach the server, this returns a normal (non-throwing) result tagged
+ * `unavailable: true` instead of throwing, so the caller can tell "server isn't up right now, try again
+ * shortly" apart from an actual deploy failure.
  */
 async function runLifecycle(
   config: Config,
@@ -55,8 +61,33 @@ async function runLifecycle(
     }
   }
 
-  const output = await rconExec(config.rcon, `sm plugins ${op} ${name}`);
-  return { via: "rcon", ok: true, data: { op, name, output } };
+  if (!config.rcon.password) {
+    return {
+      via: "none",
+      ok: false,
+      unavailable: true,
+      message:
+        "Bridge plugin is not connected and RCON is not configured, so the gameserver is unreachable " +
+        "right now. This is expected if the server is down, restarting, or mid map-change — it is not a " +
+        "deploy failure. Retry load/reload once the server is back up (check with bridge_status).",
+    };
+  }
+
+  try {
+    const output = await rconExec(config.rcon, `sm plugins ${op} ${name}`);
+    return { via: "rcon", ok: true, data: { op, name, output } };
+  } catch (err) {
+    return {
+      via: "rcon",
+      ok: false,
+      unavailable: true,
+      message:
+        "Bridge plugin is not connected and RCON could not reach the gameserver either. This is expected " +
+        "if the server is down, restarting, or mid map-change — it is not a deploy failure. Retry " +
+        "load/reload once the server is back up (check with bridge_status).",
+      error: errMessage(err),
+    };
+  }
 }
 
 // =========================================================================================================
@@ -140,7 +171,10 @@ export function registerBuildTools(server: McpServer, config: Config, bridge: Br
         description:
           `${op[0].toUpperCase()}${op.slice(1)} a plugin by name live. Prefers the bridge's structured ` +
           "plugins intent and falls back to RCON when the bridge is not connected. Applies a freshly " +
-          "deployed plugin without restarting the server.",
+          "deployed plugin without restarting the server. The gameserver connecting and dropping " +
+          "independently of this tool is normal (restarts, map changes, crashes) — a result with " +
+          "unavailable: true means the server just isn't reachable right now, not that the deploy failed; " +
+          "check bridge_status and retry later instead of treating it as an error to fix.",
         inputSchema: {
           name: z
             .string()

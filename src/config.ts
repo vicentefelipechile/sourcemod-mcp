@@ -12,7 +12,7 @@
 // Any field may be omitted; documented defaults apply. Relative paths resolve against the process CWD.
 
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // =========================================================================================================
@@ -28,6 +28,9 @@ const DEFAULT_SCRATCH_DIR = "./scratch";
 /** Config file name looked up next to the project root when no explicit path is given. */
 const DEFAULT_CONFIG_NAME = "config.json";
 
+/** Lockfile name, written next to the scratch dir. */
+const LOCKFILE_NAME = "mcp.lock";
+
 // =========================================================================================================
 // Types
 // =========================================================================================================
@@ -35,6 +38,8 @@ const DEFAULT_CONFIG_NAME = "config.json";
 export interface SocketConfig {
   host: string;
   port: number;
+  /** PID lockfile path; lets a new instance recognize and replace a stale predecessor holding the port. */
+  lockfilePath: string;
 }
 
 export interface PathsConfig {
@@ -144,18 +149,20 @@ function readRawConfig(path: string): RawConfig {
 export function loadConfig(): Config {
   const path = resolveConfigPath();
   const raw = readRawConfig(path);
+  const scratchDir = asPath(raw.paths?.scratchDir, DEFAULT_SCRATCH_DIR);
 
   return {
     socket: {
       host: asStr(raw.socket?.host, DEFAULT_SOCKET_HOST),
       port: asPort(raw.socket?.port, "socket.port", DEFAULT_SOCKET_PORT),
+      lockfilePath: join(scratchDir, LOCKFILE_NAME),
     },
     paths: {
       gameRoot: asPath(raw.paths?.gameRoot),
       scriptingDir: asPath(raw.paths?.scriptingDir),
       pluginsDir: asPath(raw.paths?.pluginsDir),
       cfgDir: asPath(raw.paths?.cfgDir),
-      scratchDir: asPath(raw.paths?.scratchDir, DEFAULT_SCRATCH_DIR),
+      scratchDir,
     },
     compiler: {
       spcompBin: asPath(raw.compiler?.spcompBin),

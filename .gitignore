@@ -1,5 +1,6 @@
 plugin/compiler/*
 dist/*
+mcp.lock
 
 # Logs
 

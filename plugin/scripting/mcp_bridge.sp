@@ -250,9 +250,17 @@ public void MCP_WriteFrame(const char[] json, int jsonLength)
         return;
     }
 
-    // Prepend the 4-byte big-endian length prefix, then the JSON bytes.
+    // Static buffer, not a per-call heap allocation: the default SourcePawn heap is only 16KB, and a
+    // `new char[]` here for every outbound frame was exhausting it on large console output (see the
+    // "Not enough space on the heap" crash in Action_Console -> MCP_SendResult -> MCP_WriteFrame).
+    static char frame[MCP_LENGTH_PREFIX_BYTES + MCP_MSG_MAXLEN];
     int total = MCP_LENGTH_PREFIX_BYTES + jsonLength;
-    char[] frame = new char[total];
+    if (total > sizeof(frame))
+    {
+        LogError("[mcp_bridge] Dropping outbound frame; %d bytes exceeds max %d", jsonLength, MCP_MSG_MAXLEN);
+        return;
+    }
+
     MCP_WriteUInt32BE(frame, jsonLength);
     for (int i = 0; i < jsonLength; i++)
     {

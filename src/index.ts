@@ -9,10 +9,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
 
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 import { errMessage } from "./errors.js";
+import { killStalePredecessor, writeLockfile, removeLockfileIfOwn } from "./lockfile.js";
 import { BridgeSocketServer } from "./socket-server.js";
 import { EventBuffer } from "./event-buffer.js";
 import { DebugStore } from "./debug-store.js";
@@ -48,6 +50,12 @@ const log = createLogger("main");
 async function main(): Promise<void> {
   const config = loadConfig();
 
+  // MCP stdio clients launch one process per conversation, so a predecessor from a prior conversation can
+  // still be running (its host closed stdin without the process exiting) and holding the bridge port. Kill
+  // it before binding so a new conversation never has to wait on manual cleanup.
+  await mkdir(config.paths.scratchDir || ".", { recursive: true });
+  await killStalePredecessor(config.socket.lockfilePath);
+
   const bridge = new BridgeSocketServer(config.socket);
   await bridge.start();
 
@@ -82,15 +90,17 @@ async function main(): Promise<void> {
   }
   registerScratchTools(server, scratch);
 
+  writeLockfile(config.socket.lockfilePath);
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   log.info("MCP server ready over stdio", { name: SERVER_NAME, version: SERVER_VERSION });
 
-  registerShutdown(bridge, scratch);
+  registerShutdown(bridge, scratch, config.socket.lockfilePath);
 }
 
 /** Wire process signals to a clean shutdown: kill scratch scripts, wipe scratch dir, stop the socket. */
-function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager): void {
+function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager, lockfilePath: string): void {
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
     if (shuttingDown) {
@@ -98,6 +108,7 @@ function registerShutdown(bridge: BridgeSocketServer, scratch: ScratchManager): 
     }
     shuttingDown = true;
     log.info("Shutting down", { signal });
+    removeLockfileIfOwn(lockfilePath);
     try {
       // Session-close cleanup for scratch scripts (kill + wipe); the startup wipe is the backstop for crashes.
       await scratch.killAll();
